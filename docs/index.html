@@ -808,8 +808,7 @@
                 
                 const label = document.createElement('span');
                 label.className = 'step-label';
-                const prefix = hasChildWorkflow ? '👉 ' : '';
-                label.innerHTML = `${prefix}${step.stateLabel}<span class="duration-subtext">${Utils.formatDuration(step.duration)}</span>`;
+                label.innerHTML = `${step.stateLabel}<span class="duration-subtext">${Utils.formatDuration(step.duration)}</span>`;
                 stepBar.appendChild(label);
 
                 // Add external CTA pointer under parent state
