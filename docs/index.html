@@ -187,6 +187,22 @@
             font-size: 10px;
         }
 
+        /* CTA layer under the timeline row for parent-state pointers */
+        .cta-layer {
+            position: relative;
+            height: 22px;
+            margin-top: 2px;
+        }
+
+        .parent-pointer {
+            position: absolute;
+            top: 0;
+            transform: translateX(-50%);
+            font-size: 18px;
+            line-height: 1;
+            pointer-events: none;
+        }
+
         .tooltip {
             position: absolute;
             background-color: #ffffff;
@@ -725,8 +741,12 @@
             const workflowSteps = StateManager.processWorkflowSteps(workflow);
             updateLegend(workflow, workflowSteps);
 
+            // CTA layer positioned below the row for parent-state pointers
+            const ctaLayer = document.createElement('div');
+            ctaLayer.className = 'cta-layer';
+
             workflowSteps.forEach((step, index) => {
-                const stepBar = this.createStepBar(step, index, workflowSteps.length, workflow);
+                const stepBar = this.createStepBar(step, index, workflowSteps.length, workflow, ctaLayer);
                 timelineRow.appendChild(stepBar);
             });
 
@@ -734,12 +754,13 @@
             timelineDiv.appendChild(ruler);
             timelineDiv.appendChild(rulerLabels);
             timelineDiv.appendChild(timelineRow);
+            timelineDiv.appendChild(ctaLayer);
             container.appendChild(timelineDiv);
 
             this.renderStats(workflow);
             },
 
-            createStepBar(step, index, totalSteps, workflow) {
+            createStepBar(step, index, totalSteps, workflow, ctaLayer) {
                 const stepBar = document.createElement('div');
                 stepBar.className = 'step-bar';
                 
@@ -790,6 +811,16 @@
                 const prefix = hasChildWorkflow ? '👉 ' : '';
                 label.innerHTML = `${prefix}${step.stateLabel}<span class="duration-subtext">${Utils.formatDuration(step.duration)}</span>`;
                 stepBar.appendChild(label);
+
+                // Add external CTA pointer under parent state
+                if (hasChildWorkflow && ctaLayer) {
+                    const pointer = document.createElement('span');
+                    pointer.className = 'parent-pointer';
+                    pointer.textContent = '☝️';
+                    // center under the parent bar
+                    pointer.style.left = `calc(${safeLeftPercent}% + ${widthPercent / 2}%)`;
+                    ctaLayer.appendChild(pointer);
+                }
 
                 // Add hover events
                 stepBar.addEventListener('mouseenter', (e) => TooltipModule.show(e, step, hasChildWorkflow, childWorkflowKey));
