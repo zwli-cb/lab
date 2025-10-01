@@ -198,9 +198,14 @@
             position: absolute;
             top: 0;
             transform: translateX(-50%);
-            font-size: 18px;
+            font-size: 14px;
             line-height: 1;
             pointer-events: none;
+            color: var(--muted);
+            background: rgba(255,255,255,0.9);
+            padding: 2px 6px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
         }
 
         .tooltip {
@@ -815,7 +820,7 @@
                 if (hasChildWorkflow && ctaLayer) {
                     const pointer = document.createElement('span');
                     pointer.className = 'parent-pointer';
-                    pointer.textContent = '☝️';
+                    pointer.textContent = '☝️ click for details';
                     // center under the parent bar
                     pointer.style.left = `calc(${safeLeftPercent}% + ${widthPercent / 2}%)`;
                     ctaLayer.appendChild(pointer);
