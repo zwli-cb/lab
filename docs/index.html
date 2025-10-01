@@ -385,7 +385,7 @@
                 steps: [
                     { name: "nova_created", type: "created", start: 0, duration: 1000 },
                     { name: "nova_processing", type: "processing", start: 1000, duration: 8000, isChildWorkflow: true, childWorkflowKey: "novaOnchain" },
-                    { name: "nova_confirmed", type: "confirming", start: 9000, duration: 9000 },
+                    { name: "nova_confirmed", type: "confirmed", start: 9000, duration: 9000 },
                     { name: "nova_finalized", type: "processed", start: 18000, duration: 2000 }
                 ]
             },
@@ -599,6 +599,7 @@
                 'signing': 'Signing',
                 'broadcasting': 'Broadcasting',
                 'confirming': 'Confirming',
+                'confirmed': 'Confirmed',
                 'waiting': 'Waiting',
                 'processing': 'Processing'
             },
