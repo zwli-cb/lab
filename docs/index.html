@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>End-to-End Visibility Demo: P2P Send CUJ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Design tokens for designers to tweak centrally */
+        :root {
+            --bg: #ffffff;
+            --surface: #ffffff;
+            --surface-alt: #fafafa;
+            --border: #e8e8ed;
+            --text: #111827;
+            --muted: #6e6e73;
+            --primary: #0a84ff; /* macOS blue */
+            --primary-600: #0071e3;
+            --shadow-sm: 0 8px 24px rgba(0,0,0,0.06);
+            --shadow-md: 0 12px 36px rgba(0,0,0,0.08);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 28px;
+            line-height: 1.4;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+        h1 { color: var(--text); font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
+        .hero-subtitle { color: var(--muted); font-size: 15px; font-weight: 500; margin-top: 6px; margin-bottom: 16px; padding: 0; background: transparent; border-left: 0; }
+
+        .timeline-container { background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm); }
+
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .workflow-name { font-weight: 600; color: var(--text); }
+
+        .timeline-ruler {
+            height: 20px;
+            background: linear-gradient(90deg, transparent 0%, transparent 10%, rgba(0,0,0,0.06) 10%, rgba(0,0,0,0.06) 10.5%, transparent 10.5%);
+            background-size: 10% 100%;
+            margin-bottom: 10px;
+            position: relative;
+            border-radius: 2px;
+        }
+
+        .ruler-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        .timeline-row {
+            position: relative;
+            height: 40px;
+            margin-bottom: 4px;
+            background: repeating-linear-gradient(90deg,
+                #f2f2f7 0,
+                #f2f2f7 calc(10% - 2px),
+                #e8e8ed calc(10% - 2px),
+                #e8e8ed 10%
+            );
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .step-bar {
+            position: absolute;
+            height: 100%;
+            border-radius: 3px;
+            cursor: default;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            font-size: 12px;
+            font-weight: 500;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            overflow: hidden;
+            background-image: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0));
+        }
+
+        .step-bar:hover { opacity: 0.9; }
+
+        .step-bar.clickable { border: 2px solid rgba(255,255,255,0.3); cursor: pointer; }
+
+        .step-bar.from-child-workflow {
+            cursor: pointer;
+        }
+
+        .step-bar.clickable:hover { border-color: var(--primary); transform: none; box-shadow: none; }
+        /* Use an orange border on hover for parent states */
+        .step-bar.clickable:hover { border-color: #ea580c; }
+
+        .step-bar.clickable:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+
+        .step-bar.clickable::after { content: none; display: none; }
+
+        .step-bar.workflow-step {
+            border: 2px solid rgba(255,255,255,0.5);
+            background: linear-gradient(135deg, transparent 25%, rgba(255,255,255,0.1) 25%, rgba(255,255,255,0.1) 50%, transparent 50%);
+            background-size: 20px 20px;
+        }
+
+        .step-bar.workflow-step::after {
+            content: "⚡";
+            margin-left: auto;
+            font-weight: bold;
+            opacity: 0.8;
+        }
+
+        .child-workflow-bar {
+            position: absolute;
+            height: 60%;
+            top: 20%;
+            border-radius: 2px;
+            border: 1px solid rgba(255,255,255,0.4);
+            background: linear-gradient(45deg, transparent 25%, rgba(255,255,255,0.1) 25%, rgba(255,255,255,0.1) 50%, transparent 50%, transparent 75%, rgba(255,255,255,0.1) 75%);
+            background-size: 8px 8px;
+            animation: childWorkflowStripes 1s linear infinite;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            font-size: 10px;
+            font-weight: 500;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+            overflow: hidden;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        @keyframes childWorkflowStripes {
+            0% { background-position: 0 0; }
+            100% { background-position: 8px 0; }
+        }
+
+        .child-workflow-bar:hover {
+            border-color: rgba(255,255,255,0.8);
+            background-color: rgba(255,255,255,0.1);
+        }
+
+
+        .step-label {
+            display: flex;
+            flex-direction: column;
+            white-space: normal;
+            line-height: 1.15;
+            overflow: hidden;
+        }
+
+        .duration-subtext {
+            opacity: 0.8;
+            font-size: 10px;
+        }
+
+        .tooltip {
+            position: absolute;
+            background-color: #ffffff;
+            color: #333333;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-md);
+        }
+
+        .tooltip.visible {
+            opacity: 1;
+        }
+
+        .tooltip::after {
+            content: "";
+            position: absolute;
+            bottom: -6px;
+            left: 12px;
+            width: 0; height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 6px solid #ffffff;
+            filter: drop-shadow(0 1px 1px rgba(0,0,0,0.1));
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            margin-bottom: 12px;
+        }
+
+        .legend { display: inline-flex; align-items: center; gap: 10px; color: #666; font-size: 12px; }
+        .legend { flex-wrap: wrap; }
+        .legend .dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
+        .dot-parent { background: #ea580c; }
+        .dot-notify { background: #16a34a; }
+        .dot-other { background: #1f77b4; }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 14px;
+            color: #666666;
+        }
+
+        select, button {
+            background: linear-gradient(180deg, #ffffff, #f9fafb);
+            color: var(--text);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 8px 14px;
+            font-size: 13px;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+        }
+
+        select:hover, button:hover {
+            background-color: #f8f9fa;
+            border-color: #999;
+        }
+
+        button#simulateBtn { background: linear-gradient(180deg, var(--primary), var(--primary-600)); border: none; color: #fff; font-weight: 600; border-radius: 12px; padding: 10px 18px; font-size: 14px; box-shadow: 0 8px 18px rgba(10,132,255,0.25); transition: filter 160ms ease, transform 120ms ease, box-shadow 160ms ease; }
+        button#simulateBtn:hover { filter: brightness(1.06); box-shadow: 0 12px 26px rgba(10,132,255,0.28); transform: translateY(-1px); }
+        button#simulateBtn:active { transform: translateY(0); box-shadow: 0 8px 18px rgba(10,132,255,0.25); }
+        button#simulateBtn:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+
+
+        .stats { background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; margin-top: 20px; box-shadow: var(--shadow-sm); }
+
+        .breadcrumb { background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 12px; font-size: 13px; color: var(--muted); box-shadow: var(--shadow-sm); }
+
+        .breadcrumb-item {
+            display: inline;
+            cursor: pointer;
+            color: #4285f4;
+            text-decoration: none;
+        }
+
+        .breadcrumb-item:hover {
+            text-decoration: underline;
+        }
+
+        .breadcrumb-separator {
+            margin: 0 8px;
+            color: #999;
+        }
+
+        .breadcrumb-current {
+            color: #333;
+            cursor: default;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value { font-size: 18px; font-weight: 600; color: var(--primary); }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .level-badge {
+            background-color: var(--primary);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="page-header">
+            <h1>End-to-End Visibility Demo: P2P Send CUJ</h1>
+        </div>
+        <p class="hero-subtitle">Explore flows end to end. Zoom in, zoom out, and pinpoint exactly where issues hide.</p>
+        <div class="controls">
+            <button id="simulateBtn">Simulate New CUJ</button>
+            <div class="legend" id="legend"></div>
+        </div>
+        
+        <div id="breadcrumb" class="breadcrumb" style="display: none;"></div>
+        
+        <div id="timelinesContainer"></div>
+
+
+        <div class="stats">
+            <div class="stats-grid" id="statsGrid">
+                <!-- Stats will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // Workflow data modeled from fund-flow.png (4-level hierarchy)
+        // user → transfer → nova → onchain
+        const workflowData = {
+            userFlow: {
+                name: "P2P Send User",
+                level: "user",
+                totalDuration: 55000,
+                steps: [
+                    { name: "user_quote", type: "quote", start: 0, duration: 7000 },
+                    { name: "user_review", type: "review", start: 7000, duration: 15000 },
+                    { name: "user_waiting", type: "waiting", start: 22000, duration: 30000, isChildWorkflow: true, childWorkflowKey: "transferWaiting" },
+                    { name: "user_notified", type: "notify", start: 52000, duration: 3000 }
+                ]
+            },
+            transferWaiting: {
+                name: "user_waiting (Transfer-level)",
+                level: "transfer",
+                parentWorkflow: "userFlow",
+                triggerStep: "user_waiting",
+                totalDuration: 30000,
+                steps: [
+                    { name: "transfer_created", type: "created", start: 0, duration: 5000 },
+                    { name: "transfer_started", type: "started", start: 5000, duration: 3000 },
+                    { name: "transfer_processing", type: "processing", start: 8000, duration: 20000, isChildWorkflow: true, childWorkflowKey: "transferProcessing" },
+                    { name: "transfer_processed", type: "processed", start: 28000, duration: 2000 }
+                ]
+            },
+            transferProcessing: {
+                name: "transfer_processing (Nova-level)",
+                level: "nova",
+                parentWorkflow: "transferWaiting",
+                triggerStep: "transfer_processing",
+                totalDuration: 20000,
+                steps: [
+                    { name: "nova_created", type: "created", start: 0, duration: 1000 },
+                    { name: "nova_processing", type: "processing", start: 1000, duration: 8000, isChildWorkflow: true, childWorkflowKey: "novaOnchain" },
+                    { name: "nova_confirmed", type: "confirming", start: 9000, duration: 9000 },
+                    { name: "nova_finalized", type: "processed", start: 18000, duration: 2000 }
+                ]
+            },
+            novaOnchain: {
+                name: "nova_processing (Onchain-level)",
+                level: "onchain",
+                parentWorkflow: "transferProcessing",
+                triggerStep: "nova_created",
+                totalDuration: 7000,
+                steps: [
+                    { name: "nova_planning", type: "planning", start: 0, duration: 1000 },
+                    { name: "nova_generating", type: "generating", start: 1000, duration: 1000 },
+                    { name: "nova_signing", type: "signing", start: 2000, duration: 1000 },
+                    { name: "nova_broadcasting", type: "broadcasting", start: 3000, duration: 1000 },
+                    { name: "nova_confirming", type: "confirming", start: 4000, duration: 3000 }
+                ]
+            }
+        };
+
+        let currentWorkflow = 'userFlow';
+        let tooltip = document.getElementById('tooltip');
+
+        // ============================================================================
+        // UTILITY FUNCTIONS - Modular helper functions
+        // ============================================================================
+        const Utils = {
+            // Generate colors for steps using a curated palette WITHOUT red/orange (reserved for parent states)
+            generateStepColor(index, total) {
+                const palette = [
+                    '#1f77b4', // blue
+                    '#17becf', // cyan
+                    '#2ca02c', // green
+                    '#9467bd', // purple
+                    '#7f7f7f', // gray
+                    '#3182bd', // light blue
+                    '#31a354', // emerald
+                    '#756bb1', // violet
+                    '#636363', // dark gray
+                    '#0ea5e9', // sky
+                    '#14b8a6', // teal
+                    '#3b82f6'  // indigo/blue
+                ];
+                if (index < palette.length) return palette[index];
+                // Fallback: golden-angle HSL while avoiding red/orange ranges
+                let hue = ((index - palette.length) * 137.508) % 360;
+                // Avoid red (~350-20) and orange (~20-60)
+                if (hue < 60 || hue >= 350) {
+                    hue = (hue + 90) % 360;
+                }
+                const saturation = 60;
+                const lightness = 55;
+                return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            },
+
+            // Find child workflow triggered by a specific step
+            findChildWorkflow(parentWorkflowKey, stepName) {
+                const parentWorkflow = workflowData[parentWorkflowKey];
+                if (parentWorkflow) {
+                    const step = parentWorkflow.steps.find(s => s.name === stepName);
+                    if (step && step.isChildWorkflow) {
+                        return step.childWorkflowKey;
+                    }
+                }
+                return null;
+            },
+
+            // Format duration as ms, s, or h
+            formatDuration(ms) {
+                if (ms >= 3600000) {
+                    const hours = ms / 3600000;
+                    return `${hours.toFixed(hours < 10 ? 1 : 0)}h`;
+                }
+                if (ms >= 1000) {
+                    const seconds = ms / 1000;
+                    if (seconds < 10 && Math.abs(seconds - Math.round(seconds)) > 0.0001) {
+                        return `${seconds.toFixed(1)}s`;
+                    }
+                    return `${Math.round(seconds)}s`;
+                }
+                return `${Math.round(ms)}ms`;
+            },
+
+            // Friendly breadcrumb title per level
+            getNavTitle(workflow, key) {
+                switch (workflow.level) {
+                    case 'user':
+                        return 'User';
+                    case 'transfer':
+                        return 'Transfer';
+                    case 'nova':
+                        return 'Nova';
+                    case 'onchain':
+                        return 'OnChain';
+                    default:
+                        return workflow.name;
+                }
+            },
+
+            // Randomize duration by fuzziness factor (±fuzziness) with small extra jitter
+            randomizeDuration(originalMs, fuzziness = 0.8, minMs = 20) {
+                const lower = Math.max(0, 1 - fuzziness);
+                const upper = 1 + fuzziness;
+                const factor = lower + Math.random() * (upper - lower);
+                const jitter = Math.random() * 25; // add 0-25ms extra jitter
+                return Math.max(minMs, Math.round(originalMs * factor + jitter));
+            }
+        };
+
+        function updateLegend(workflow, workflowSteps) {
+            const legendEl = document.getElementById('legend');
+            if (!legendEl) return;
+            const total = workflowSteps.length;
+            const items = workflowSteps.map((s, i) => {
+                const isParent = !!(s.isWorkflowStep || s.childWorkflowKey);
+                const isNotify = (s.type === 'notify') || /notifi/i.test(s.name) || /notifi/i.test(s.stateLabel);
+                const color = isParent ? '#ea580c' : (isNotify ? '#16a34a' : Utils.generateStepColor(i, total));
+                const baseName = s.stateLabel || s.name;
+                const name = isParent ? `${baseName} (parent state)` : baseName;
+                return `<span class="dot" style="background:${color}"></span> ${name}`;
+            });
+            legendEl.innerHTML = items.join(' ');
+        }
+
+        // Randomize all workflow durations for initial load
+        function randomizeInitialDurations(fuzziness = 0.5) {
+            Object.keys(workflowData).forEach(key => {
+                const wf = workflowData[key];
+                if (!wf || !Array.isArray(wf.steps)) return;
+                // Randomize each step duration
+                wf.steps.forEach(step => {
+                    step.duration = Utils.randomizeDuration(step.duration, fuzziness, 30);
+                });
+                // Recalculate start times and total
+                let time = 0;
+                wf.steps.forEach(step => {
+                    step.start = time;
+                    time += step.duration;
+                });
+                wf.totalDuration = time;
+            });
+        }
+
+        // Create child workflow bar within a parent step
+        function createChildWorkflowBar(parentStep, childWorkflowKey, parentWorkflow) {
+            const childWorkflow = workflowData[childWorkflowKey];
+            if (!childWorkflow) return null;
+
+            const childBar = document.createElement('div');
+            childBar.className = 'child-workflow-bar';
+            
+            // Position child workflow bar within the parent step
+            // Child starts at the beginning of parent step and takes up the child's duration
+            const childWidthPercent = (childWorkflow.totalDuration / parentStep.duration) * 100;
+            childBar.style.width = `${Math.min(childWidthPercent, 100)}%`;
+            childBar.style.left = '0%';
+            
+            // Set background color based on child workflow
+            const childSteps = childWorkflow.steps.length;
+            const avgHue = childWorkflow.steps.reduce((sum, step, index) => {
+                return sum + (index * 360) / childSteps;
+            }, 0) / childSteps;
+            childBar.style.backgroundColor = `hsla(${avgHue}, 60%, 45%, 0.8)`;
+            
+            const label = document.createElement('span');
+            label.textContent = childWorkflow.name.split(' (')[0];
+            childBar.appendChild(label);
+
+            // Add click event to navigate to child workflow
+            childBar.addEventListener('click', (e) => {
+                e.stopPropagation();
+                navigateToWorkflow(childWorkflowKey);
+            });
+
+            // Add hover events
+            childBar.addEventListener('mouseenter', (e) => {
+                showChildWorkflowTooltip(e, childWorkflow, parentStep);
+            });
+            childBar.addEventListener('mouseleave', hideTooltip);
+            childBar.addEventListener('mousemove', (e) => updateTooltipPosition(e));
+
+            return childBar;
+        }
+
+        // Show tooltip for child workflow bars
+        function showChildWorkflowTooltip(event, childWorkflow, parentStep) {
+            tooltip.innerHTML = `
+                <strong>${childWorkflow.name}</strong><br>
+                Duration: ${Utils.formatDuration(childWorkflow.totalDuration)}<br>
+                Steps: ${childWorkflow.steps.length}<br>
+                <br><strong style="color: #4285f4;">Click to view details →</strong>
+            `;
+            tooltip.classList.add('visible');
+            updateTooltipPosition(event);
+        }
+
+        // ============================================================================
+        // STATE MANAGER - Handles state labels and workflow processing
+        // ============================================================================
+        const StateManager = {
+            // State label mappings
+            stateMap: {
+                'quote': 'Getting Quote',
+                'review': 'Reviewing',
+                'submit': 'Submitting',
+                'notify': 'Notifying',
+                'created': 'Created',
+                'started': 'Started',
+                'processed': 'Processed',
+                'planning': 'Planning',
+                'generating': 'Generating',
+                'signing': 'Signing',
+                'broadcasting': 'Broadcasting',
+                'confirming': 'Confirming',
+                'waiting': 'Waiting',
+                'processing': 'Processing'
+            },
+
+            // Generate state machine status labels
+            generateStateLabel(step) {
+                let state = this.stateMap[step.type] || 'Processing';
+
+                // Fallbacks from step names when type is generic or missing
+                if (state === 'Processing') {
+                    const n = step.name.toLowerCase();
+                    if (n.includes('quote')) state = 'Getting Quote';
+                    else if (n.includes('review')) state = 'Reviewing';
+                    else if (n.includes('submit')) state = 'Submitting';
+                    else if (n.includes('notified')) state = 'Notifying';
+                    else if (n.includes('planning')) state = 'Planning';
+                    else if (n.includes('generating')) state = 'Generating';
+                    else if (n.includes('signing')) state = 'Signing';
+                    else if (n.includes('broadcast')) state = 'Broadcasting';
+                    else if (n.includes('confirm')) state = 'Confirming';
+                    else if (n.includes('created')) state = 'Created';
+                    else if (n.includes('started')) state = 'Started';
+                    else if (n.includes('processed')) state = 'Processed';
+                }
+
+                return state;
+            },
+
+            // Process workflow steps
+            processWorkflowSteps(workflow) {
+                return workflow.steps.map(step => ({
+                    ...step,
+                    stateLabel: this.generateStateLabel(step),
+                    isWorkflowStep: step.isChildWorkflow
+                }));
+            }
+        };
+
+        // ============================================================================
+        // NAVIGATION MODULE - Handles workflow navigation and breadcrumbs
+        // ============================================================================
+        const NavigationModule = {
+            // Navigate to a workflow
+            navigateTo(workflowKey) {
+                currentWorkflow = workflowKey;
+                this.createBreadcrumb(workflowKey);
+                TimelineRenderer.render(workflowData[workflowKey]);
+            },
+
+            // Create breadcrumb navigation (arbitrary depth via parent chain)
+            createBreadcrumb(workflowKey) {
+            const breadcrumbDiv = document.getElementById('breadcrumb');
+            let key = workflowKey;
+            const chain = [];
+            while (key && workflowData[key]) {
+                const wf = workflowData[key];
+                chain.push({ key, name: Utils.getNavTitle(wf, key) });
+                key = wf.parentWorkflow;
+            }
+            if (chain.length <= 1) {
+                breadcrumbDiv.style.display = 'none';
+                return;
+            }
+            const items = chain.reverse().map((item, index, arr) => {
+                const isCurrent = index === arr.length - 1;
+                if (isCurrent) {
+                    return `<span class=\"breadcrumb-current\">${item.name}</span>`;
+                }
+                const separator = '<span class=\"breadcrumb-separator\">→</span>';
+                return `<span class=\"breadcrumb-item\" onclick=\"NavigationModule.navigateTo('${item.key}')\">${item.name}</span>${separator}`;
+            }).join('');
+            breadcrumbDiv.style.display = 'block';
+            breadcrumbDiv.innerHTML = items;
+            }
+        };
+
+        // ============================================================================
+        // TIMELINE RENDERER - Handles timeline visualization
+        // ============================================================================
+        const TimelineRenderer = {
+            render(workflow) {
+            const container = document.getElementById('timelinesContainer');
+            container.innerHTML = '';
+
+            const timelineDiv = document.createElement('div');
+            timelineDiv.className = 'timeline-container';
+
+            // Header
+            const header = document.createElement('div');
+            header.className = 'timeline-header';
+            
+            let relationshipInfo = '';
+            
+            header.innerHTML = `
+                <div>
+                    <span class="workflow-name">${workflow.name}</span>
+                </div>
+                <span>Total Duration: ${Utils.formatDuration(workflow.totalDuration)}</span>
+            `;
+
+            // Ruler
+            const ruler = document.createElement('div');
+            ruler.className = 'timeline-ruler';
+
+            const rulerLabels = document.createElement('div');
+            rulerLabels.className = 'ruler-labels';
+            const intervals = 10;
+            for (let i = 0; i <= intervals; i++) {
+                const label = document.createElement('span');
+                label.textContent = `${Utils.formatDuration((workflow.totalDuration * i) / intervals)}`;
+                rulerLabels.appendChild(label);
+            }
+
+            // Timeline row
+            const timelineRow = document.createElement('div');
+            timelineRow.className = 'timeline-row';
+
+            // Get workflow steps
+            const workflowSteps = StateManager.processWorkflowSteps(workflow);
+            updateLegend(workflow, workflowSteps);
+
+            workflowSteps.forEach((step, index) => {
+                const stepBar = this.createStepBar(step, index, workflowSteps.length, workflow);
+                timelineRow.appendChild(stepBar);
+            });
+
+            timelineDiv.appendChild(header);
+            timelineDiv.appendChild(ruler);
+            timelineDiv.appendChild(rulerLabels);
+            timelineDiv.appendChild(timelineRow);
+            container.appendChild(timelineDiv);
+
+            this.renderStats(workflow);
+            },
+
+            createStepBar(step, index, totalSteps, workflow) {
+                const stepBar = document.createElement('div');
+                stepBar.className = 'step-bar';
+                
+                // Check if this step has a child workflow
+                const childWorkflowKey = step.childWorkflowKey || Utils.findChildWorkflow(currentWorkflow, step.name);
+                const hasChildWorkflow = !!childWorkflowKey;
+                
+                if (hasChildWorkflow) {
+                    stepBar.classList.add('clickable');
+                    stepBar.setAttribute('tabindex', '0');
+                    stepBar.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            NavigationModule.navigateTo(childWorkflowKey);
+                        }
+                    });
+                    // Use a warm orange tone for parent states
+                    stepBar.style.backgroundColor = '#ea580c';
+                } else {
+                    stepBar.style.backgroundColor = Utils.generateStepColor(index, totalSteps);
+                }
+                
+                // Add special styling for workflow steps
+                if (step.isWorkflowStep) {
+                    stepBar.classList.add('workflow-step');
+                }
+                
+                const leftPercent = (step.start / workflow.totalDuration) * 100;
+                const safeTotal = workflow.totalDuration > 0 ? workflow.totalDuration : (workflow.steps || []).reduce((s, st) => s + (st.duration || 0), 0);
+                const safeDenom = safeTotal || 1;
+                const safeLeftPercent = (step.start / safeDenom) * 100;
+                const widthPercent = Math.max(10, (step.duration / safeDenom) * 100);
+                 
+                stepBar.style.left = `${safeLeftPercent}%`;
+                stepBar.style.width = `${widthPercent}%`;
+                let barColor;
+                if (hasChildWorkflow) {
+                    barColor = '#ea580c'; // parent state orange
+                } else if (step.type === 'notify' || /notifi/i.test(step.name) || /notifi/i.test(step.stateLabel)) {
+                    barColor = '#16a34a'; // distinct green for Notifying
+                } else {
+                    barColor = Utils.generateStepColor(index, totalSteps);
+                }
+                stepBar.style.backgroundColor = barColor;
+                
+                const label = document.createElement('span');
+                label.className = 'step-label';
+                const prefix = hasChildWorkflow ? '👉 ' : '';
+                label.innerHTML = `${prefix}${step.stateLabel}<span class="duration-subtext">${Utils.formatDuration(step.duration)}</span>`;
+                stepBar.appendChild(label);
+
+                // Add hover events
+                stepBar.addEventListener('mouseenter', (e) => TooltipModule.show(e, step, hasChildWorkflow, childWorkflowKey));
+                stepBar.addEventListener('mouseleave', () => TooltipModule.hide());
+                stepBar.addEventListener('mousemove', (e) => TooltipModule.updatePosition(e));
+
+                // Add click event for navigating to child workflow
+                if (hasChildWorkflow) {
+                    stepBar.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        NavigationModule.navigateTo(childWorkflowKey);
+                    });
+                }
+
+                return stepBar;
+            },
+
+            renderStats(workflow) {
+                const statsGrid = document.getElementById('statsGrid');
+                
+                const totalSteps = workflow.steps.length;
+                const longestStep = workflow.steps.reduce((max, step) => 
+                    step.duration > max.duration ? step : max, workflow.steps[0]);
+                const shortestStep = workflow.steps.reduce((min, step) => 
+                    step.duration < min.duration ? step : min, workflow.steps[0]);
+
+                statsGrid.innerHTML = `
+                    <div class="stat-item">
+                        <div class="stat-value">${totalSteps}</div>
+                        <div class="stat-label">Total Steps</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${Utils.formatDuration(workflow.totalDuration)}</div>
+                        <div class="stat-label">Total Duration</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${longestStep.name}</div>
+                        <div class="stat-label">Longest Step (${Utils.formatDuration(longestStep.duration)})</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${shortestStep.name}</div>
+                        <div class="stat-label">Shortest Step (${Utils.formatDuration(shortestStep.duration)})</div>
+                    </div>
+                `;
+            }
+        };
+
+        // ============================================================================
+        // TOOLTIP MODULE - Handles tooltip display and positioning
+        // ============================================================================
+        const TooltipModule = {
+            element: null,
+
+            init() {
+                this.element = document.getElementById('tooltip');
+            },
+
+            show(event, step, hasChildWorkflow = false, childWorkflowKey = null) {
+                if (!this.element) this.init();
+                
+                let childWorkflowInfo = '';
+                if (hasChildWorkflow && childWorkflowKey) {
+                    const childWorkflow = workflowData[childWorkflowKey];
+                    childWorkflowInfo = `<br><br><strong style="color: #4285f4;">Click to navigate →</strong><br><em>${childWorkflow.name}</em>`;
+                }
+                
+                this.element.innerHTML = `
+                    <strong>${step.name}</strong><br>
+                    Start: ${Utils.formatDuration(step.start)}<br>
+                    Duration: ${Utils.formatDuration(step.duration)}<br>
+                    End: ${Utils.formatDuration(step.start + step.duration)}${childWorkflowInfo}
+                `;
+                this.element.classList.add('visible');
+                this.updatePosition(event);
+            },
+
+            hide() {
+                if (this.element) {
+                    this.element.classList.remove('visible');
+                }
+            },
+
+            updatePosition(event) {
+                if (!this.element) return;
+                const rect = this.element.getBoundingClientRect();
+                const x = event.clientX + 10;
+                const y = event.clientY - rect.height - 10;
+                
+                this.element.style.left = `${x}px`;
+                this.element.style.top = `${y}px`;
+            }
+        };
+
+        // ============================================================================
+        // SIMULATION MODULE - Handles workflow simulation
+        // ============================================================================
+        const SimulationModule = {
+            simulate() {
+                const workflow = workflowData[currentWorkflow];
+                const newWorkflow = JSON.parse(JSON.stringify(workflow));
+                
+                // Add randomness to durations (stronger fuzziness)
+                newWorkflow.steps.forEach(step => {
+                    step.duration = Utils.randomizeDuration(step.duration, 0.8, 30);
+                });
+
+                // Recalculate start times
+                let currentTime = 0;
+                newWorkflow.steps.forEach(step => {
+                    step.start = currentTime;
+                    currentTime += step.duration;
+                });
+                newWorkflow.totalDuration = currentTime;
+
+                TimelineRenderer.render(newWorkflow);
+            }
+        };
+
+        // ============================================================================
+        // APPLICATION CONTROLLER - Main application logic
+        // ============================================================================
+        const TimelineApp = {
+            init() {
+                TooltipModule.init();
+                this.attachEventListeners();
+                randomizeInitialDurations(0.5);
+                currentWorkflow = 'userFlow';
+                NavigationModule.createBreadcrumb('userFlow');
+                TimelineRenderer.render(workflowData['userFlow']);
+                // Auto-run a simulation shortly after initial render
+                setTimeout(() => SimulationModule.simulate(), 120);
+            },
+
+            attachEventListeners() {
+                document.getElementById('simulateBtn').addEventListener('click', () => SimulationModule.simulate());
+            }
+        };
+
+        // Initialize the application
+        window.addEventListener('load', () => TimelineApp.init());
+    </script>
+</body>
+</html>
